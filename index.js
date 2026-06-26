@@ -5,11 +5,31 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
 
-if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads');
-}
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
+});
+
+const upload = multer({ storage: storage });
 
 app.get('/login', (req, res) => {
     res.send('ladyxxa');
@@ -21,11 +41,12 @@ app.get('/zipper', (req, res) => {
         <html lang="ru">
         <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Zipper Form</title>
         </head>
         <body>
             <h2>Загрузка файла для GZIP-сжатия</h2>
-            <form action="/zipper" method="post" enctype="multipart/form-data">
+            <form action="/zipper" method="POST" enctype="multipart/form-data">
                 <input type="file" name="file" required>
                 <button type="submit">Сжать файл</button>
             </form>
@@ -35,36 +56,39 @@ app.get('/zipper', (req, res) => {
 });
 
 app.post('/zipper', upload.single('file'), (req, res) => {
-    console.log('Получен файл:', req.file); // Для отладки
+    console.log('Request received');
+    console.log('File:', req.file);
     
     if (!req.file) {
-        return res.status(400).send('Файл не был загружен');
+        console.log('No file in request');
+        return res.status(400).json({ error: 'No file uploaded' });
     }
-
-    const inputFile = req.file.path;
-    const outputFile = inputFile + '.gz';
-
+    
     try {
-        const fileContent = fs.readFileSync(inputFile);
+        const fileContent = fs.readFileSync(req.file.path);
+        
         const compressed = zlib.gzipSync(fileContent);
         
-        fs.unlinkSync(inputFile);
+        fs.unlinkSync(req.file.path);
         
         res.setHeader('Content-Type', 'application/gzip');
         res.setHeader('Content-Disposition', 'attachment; filename="result.gz"');
         res.send(compressed);
         
-    } catch (error) {
-        console.error('Ошибка при сжатии:', error);
-        res.status(500).send('Ошибка при сжатии файла');
+        console.log('File compressed and sent successfully');
         
-        if (fs.existsSync(inputFile)) {
-            fs.unlinkSync(inputFile);
+    } catch (error) {
+        console.error('Compression error:', error);
+        
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
         }
+        
+        res.status(500).json({ error: 'Compression failed' });
     }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
 });

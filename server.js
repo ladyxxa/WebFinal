@@ -8,37 +8,33 @@ const upload = multer({
   storage: multer.memoryStorage()
 });
 
-
 app.get("/login", (req, res) => {
-  res.type("text/plain");
-  res.send("ladyxxa");
+  res.type("text/plain").send("ladyxxa");
 });
 
-app.post("/zipper", upload.single("file"), (req, res) => {
 
-  if (!req.file) {
+app.get("/zipper", (req, res) => {
+  res.status(200).send("OK");
+});
+
+app.post("/zipper", upload.any(), (req, res) => {
+  if (!req.files || req.files.length === 0) {
     return res.status(400).send("No file");
   }
 
-  zlib.gzip(req.file.buffer, (err, result) => {
-
+  zlib.gzip(req.files[0].buffer, (err, gz) => {
     if (err) {
-      return res.status(500).send("Compression error");
+      return res.sendStatus(500);
     }
 
-    res.setHeader("Content-Type", "application/gzip");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${req.file.originalname}.gz"`
-    );
-
-    res.send(result);
+    res.status(200);
+    res.set("Content-Type", "application/gzip");
+    res.end(gz);
   });
-
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`Server started on ${PORT}`);
+  console.log(`Listening on ${PORT}`);
 });

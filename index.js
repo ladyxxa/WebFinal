@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const zlib = require('zlib');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -34,6 +35,8 @@ app.get('/zipper', (req, res) => {
 });
 
 app.post('/zipper', upload.single('file'), (req, res) => {
+    console.log('Получен файл:', req.file); // Для отладки
+    
     if (!req.file) {
         return res.status(400).send('Файл не был загружен');
     }
@@ -41,27 +44,24 @@ app.post('/zipper', upload.single('file'), (req, res) => {
     const inputFile = req.file.path;
     const outputFile = inputFile + '.gz';
 
-    const gzip = zlib.createGzip();
-    const input = fs.createReadStream(inputFile);
-    const output = fs.createWriteStream(outputFile);
-
-    input.pipe(gzip).pipe(output);
-
-    output.on('finish', () => {
-        res.download(outputFile, 'result.gz', (err) => {
-            if (err) {
-                console.error('Ошибка при отправке файла:', err);
-            }
-            fs.unlink(inputFile, () => {});
-            fs.unlink(outputFile, () => {});
-        });
-    });
-
-    output.on('error', (err) => {
-        console.error('Ошибка при сжатии:', err);
+    try {
+        const fileContent = fs.readFileSync(inputFile);
+        const compressed = zlib.gzipSync(fileContent);
+        
+        fs.unlinkSync(inputFile);
+        
+        res.setHeader('Content-Type', 'application/gzip');
+        res.setHeader('Content-Disposition', 'attachment; filename="result.gz"');
+        res.send(compressed);
+        
+    } catch (error) {
+        console.error('Ошибка при сжатии:', error);
         res.status(500).send('Ошибка при сжатии файла');
-        fs.unlink(inputFile, () => {});
-    });
+        
+        if (fs.existsSync(inputFile)) {
+            fs.unlinkSync(inputFile);
+        }
+    }
 });
 
 const PORT = process.env.PORT || 3000;

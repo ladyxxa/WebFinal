@@ -1,7 +1,6 @@
 {
   "name": "zipper-app",
   "version": "1.0.0",
-  "description": "GZIP compression app",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
